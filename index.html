@@ -1,0 +1,683 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>محلل الخزانات</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+body{margin:0}
+/* Layout: workbench — shape selector on top, inputs | 3D tank side by side, 4 result tiles, chart | equation, collapsible steps and table */
+:root{
+  --bg:#edf2f1; --surface:#ffffff; --sunk:#f4f8f7; --ink:#14302d; --muted:#5a6f6b; --line:#d3dfdc;
+  --accent:#0d6b66; --accent-ink:#ffffff; --water:#2f7fc1; --water-soft:#2f7fc12e; --mark:#c0812a; --err:#b23a3a;
+  --f-body:"IBM Plex Sans Arabic",system-ui,"Segoe UI",Tahoma,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1918; --surface:#162321; --sunk:#12201e; --ink:#e2ecea; --muted:#93a8a4; --line:#2b3e3b;
+  --accent:#4fbfb6; --accent-ink:#0b1b19; --water:#5ea9e8; --water-soft:#5ea9e82e; --mark:#e0a650; --err:#ef7b7b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1918; --surface:#162321; --sunk:#12201e; --ink:#e2ecea; --muted:#93a8a4; --line:#2b3e3b;
+  --accent:#4fbfb6; --accent-ink:#0b1b19; --water:#5ea9e8; --water-soft:#5ea9e82e; --mark:#e0a650; --err:#ef7b7b; color-scheme:dark}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.6}
+.wrap{max-width:1200px;margin:0 auto;padding-block:24px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:16px}
+.hd{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:6px 24px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+h1{font-weight:700;font-size:1.6rem;margin:0;line-height:1.3}
+.sub{color:var(--muted);font-size:.88rem;margin:2px 0 0}
+.sub b{font-family:var(--f-mono);font-weight:400;direction:ltr;unicode-bidi:isolate}
+.seg{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:4px}
+@media (max-width:720px){.seg{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.tab{font:inherit;font-weight:600;border:0;background:transparent;color:var(--ink);padding:9px 8px;border-radius:7px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;min-width:0}
+.tab svg{width:20px;height:20px;flex:none}
+.tab:hover{background:var(--sunk)}
+.tab[aria-selected="true"]{background:var(--accent);color:var(--accent-ink)}
+.tab:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:20px;min-width:0}
+.ph{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.ph h2{font-weight:700;font-size:1.12rem;margin:0}
+.ph h3{font-size:.92rem;font-weight:700;margin:0}
+.ph .hint2{font-size:.78rem;color:var(--muted)}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+.viewer{position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px)}
+@media (max-width:900px){.viewer{position:static}}
+.split{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:16px;align-items:stretch}
+@media (max-width:900px){.layout,.split{grid-template-columns:minmax(0,1fr)}}
+.desc{color:var(--muted);font-size:.88rem;margin:0}
+.grp{border-top:1px solid var(--line);margin-top:16px;padding-top:14px}
+.grp-t{font-size:.78rem;font-weight:700;color:var(--muted);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px}
+.fields.c3{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (max-width:520px){.fields.c3{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.field{display:grid;gap:4px;min-width:0}
+.field.full,.fields:not(.c3)>.field:last-child:nth-child(odd){grid-column:1/-1}
+.field label{font-size:.82rem;color:var(--ink)}
+.field label i{font-family:var(--f-mono);font-style:normal;color:var(--muted);direction:ltr;unicode-bidi:isolate}
+input[type=number],input[type=text],select{font:inherit;background:var(--sunk);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px 10px;width:100%;min-width:0;height:40px}
+input[type=number],input[type=text].mono{font-family:var(--f-mono);direction:ltr;text-align:left}
+.ig{display:flex;direction:ltr;min-width:0}
+.ig input{flex:1;min-width:0;border-radius:6px 0 0 6px}
+.ig select{flex:none;width:auto;min-width:72px;border-radius:0 6px 6px 0;border-left:0;font-family:var(--f-mono);font-size:.85rem;direction:ltr;text-align:left;padding:0 8px;cursor:pointer;background:var(--surface)}
+.hint{font-size:.74rem;color:var(--muted);min-height:1.2em;line-height:1.3}
+.btn{font:inherit;font-size:.82rem;font-weight:600;border:1px solid var(--line);background:var(--sunk);color:var(--ink);padding:6px 12px;border-radius:6px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--accent)}
+.holes{display:flex;flex-direction:column;gap:10px}
+.hole{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1fr) auto;gap:10px;align-items:end}
+.hole .no{font-family:var(--f-mono);font-size:.8rem;color:var(--muted);height:40px;display:grid;place-items:center;width:28px;border:1px solid var(--line);border-radius:6px}
+.hole .x{height:40px;width:40px;padding:0;font-size:1.1rem}
+.hole .x:disabled{opacity:.35;cursor:default}
+.viewer{display:flex;flex-direction:column}
+.viewer svg{width:100%;max-width:320px;display:block;margin:0 auto}
+.reads{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:8px}
+.rd{background:var(--sunk);border:1px solid var(--line);border-radius:7px;padding:7px 10px;text-align:center;min-width:0}
+.rd .k{font-size:.74rem;color:var(--muted)}
+.rd .v{font-family:var(--f-mono);font-size:1rem;font-weight:500;direction:ltr;overflow-wrap:anywhere}
+.player{display:flex;align-items:center;gap:12px;margin-top:14px;direction:ltr}
+.play{border:0;background:var(--accent);color:var(--accent-ink);width:42px;height:42px;border-radius:50%;cursor:pointer;display:grid;place-items:center;flex:none}
+.play svg{width:16px;height:16px}
+.player input[type=range]{flex:1;accent-color:var(--accent);height:28px;min-width:0}
+.ends{display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:.74rem;color:var(--muted);direction:ltr;padding-left:54px}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+@media (max-width:760px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;min-width:0;display:flex;flex-direction:column;gap:2px}
+.stat .k{font-size:.78rem;color:var(--muted)}
+.stat .v{font-family:var(--f-mono);font-size:1.25rem;font-weight:500;direction:ltr;text-align:right;overflow-wrap:anywhere}
+.stat .s{font-family:var(--f-mono);font-size:.74rem;color:var(--muted);direction:ltr;text-align:right;overflow-wrap:anywhere}
+.stat.main{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.stat.main .k,.stat.main .s{color:var(--accent-ink);opacity:.85}
+.eq{font-family:var(--f-mono);direction:ltr;text-align:left;background:var(--sunk);border:1px solid var(--line);border-radius:7px;padding:11px 14px;font-size:.98rem;overflow-x:auto;white-space:nowrap}
+.eqs{display:flex;flex-direction:column;gap:6px}
+.note{font-size:.8rem;color:var(--muted);margin:8px 0 0}
+.side{display:flex;flex-direction:column;gap:18px}
+.side hr{border:0;border-top:1px solid var(--line);margin:0}
+.qbox{display:grid;gap:6px}
+.qbox label{font-size:.85rem}
+.qrow{display:flex;gap:8px}
+.qrow input{flex:1}
+.qrow select{width:auto;flex:none}
+.qout{font-family:var(--f-mono);direction:ltr;text-align:right;font-size:.92rem;background:var(--sunk);border-radius:6px;padding:6px 10px;min-height:2.1em;overflow-wrap:anywhere}
+.chart{overflow-x:auto;direction:ltr}
+.chart svg{width:100%;min-width:420px;height:auto;display:block}
+table{border-collapse:collapse;width:100%;font-family:var(--f-mono);font-size:.85rem;font-variant-numeric:tabular-nums;direction:ltr}
+th,td{border-bottom:1px solid var(--line);padding:6px 12px;text-align:right}
+th{font-family:var(--f-body);font-weight:600;color:var(--muted);font-size:.8rem}
+.tbl{overflow-x:auto}
+ol.steps{margin:0;padding-inline-start:22px;display:flex;flex-direction:column;gap:12px}
+ol.steps .m{display:block;font-family:var(--f-mono);direction:ltr;text-align:left;background:var(--sunk);border-radius:5px;padding:7px 12px;margin-top:4px;overflow-x:auto;white-space:nowrap;font-size:.9rem}
+details.acc{padding:0}
+details.acc>summary{list-style:none;cursor:pointer;padding:15px 20px;font-weight:700;display:flex;align-items:center;justify-content:space-between;gap:10px}
+details.acc>summary::-webkit-details-marker{display:none}
+details.acc>summary .cnt{font-weight:400;color:var(--muted);font-size:.85rem}
+details.acc>summary::after{content:"";width:9px;height:9px;border-left:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-45deg);transition:transform .2s;flex:none}
+details.acc[open]>summary::after{transform:rotate(135deg)}
+details.acc>summary:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:10px}
+details.acc .body{padding:0 20px 20px}
+.err{color:var(--err);font-weight:600;background:var(--surface);border:1px solid var(--err);border-radius:10px;padding:12px 16px}
+.jet{stroke-dasharray:7 5;animation:flow .5s linear infinite}
+@keyframes flow{to{stroke-dashoffset:-12}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+</head>
+<body>
+<div class="wrap" dir="rtl">
+  <header class="hd">
+    <div>
+      <h1>محلل الخزانات</h1>
+      <p class="sub">حل معادلات تفريغ الخزانات · <b>Engineering Analysis &amp; Numerical Methods</b></p>
+    </div>
+    <p class="sub">اختار شكل الخزان، أدخل الأبعاد، والنتيجة تتحدث مباشرة</p>
+  </header>
+
+  <nav class="seg" id="tabs" role="tablist" aria-label="شكل الخزان"></nav>
+
+  <div class="layout">
+    <section class="panel">
+      <div class="ph"><h2 id="mTitle"></h2></div>
+      <p class="desc" id="mDesc"></p>
+      <div id="form"></div>
+    </section>
+    <section class="panel viewer">
+      <div class="ph"><h3>مجسم الخزان</h3><span class="hint2">حرّك المؤشر أو اضغط تشغيل</span></div>
+      <svg id="tank" viewBox="0 0 260 300" aria-label="مجسم الخزان"></svg>
+      <div class="reads">
+        <div class="rd"><div class="k">الزمن</div><div class="v" id="rdT">—</div></div>
+        <div class="rd"><div class="k">العمق y</div><div class="v" id="rdY">—</div></div>
+        <div class="rd"><div class="k">الماء المتبقي</div><div class="v" id="rdP">—</div></div>
+      </div>
+      <div class="player">
+        <button class="play" id="playBtn" type="button" aria-label="تشغيل"></button>
+        <input type="range" id="tSlider" min="0" max="1000" value="0" step="1" aria-label="الزمن">
+      </div>
+      <div class="ends"><span>0</span><span id="endLbl"></span></div>
+    </section>
+  </div>
+
+  <div id="errBox" class="err" hidden></div>
+  <div class="stats" id="cards"></div>
+
+  <div class="split">
+    <section class="panel">
+      <div class="ph"><h3>منحني عمق الماء مع الزمن</h3><span class="hint2">الخط المتقطع = موقع المؤشر</span></div>
+      <div class="chart" id="chart"></div>
+    </section>
+    <section class="panel side">
+      <div>
+        <div class="ph"><h3>المعادلة</h3></div>
+        <div class="eqs" id="eqs"></div>
+        <p class="note" id="eqNote"></p>
+      </div>
+      <hr>
+      <div>
+        <div class="ph"><h3>احسب قيمة معينة</h3></div>
+        <div class="qbox">
+          <label for="q-t">عمق الماء بعد زمن t</label>
+          <div class="qrow"><input id="q-t" type="number" step="any" value="1"><select id="q-tu" aria-label="وحدة الزمن"><option value="s">ثانية</option><option value="min">دقيقة</option><option value="hr" selected>ساعة</option></select></div>
+          <div class="qout" id="q-t-out"></div>
+        </div>
+        <div class="qbox" style="margin-top:12px">
+          <label for="q-y">الزمن اللي يوصل بيه العمق إلى y (m)</label>
+          <div class="qrow"><input id="q-y" type="number" step="any" value="1"></div>
+          <div class="qout" id="q-y-out"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <details class="panel acc">
+    <summary><span>خطوات الحل <span class="cnt" id="stepsCnt"></span></span></summary>
+    <div class="body"><ol class="steps" id="steps"></ol></div>
+  </details>
+  <details class="panel acc">
+    <summary><span>جدول القيم</span></summary>
+    <div class="body tbl" id="table"></div>
+  </details>
+</div>
+
+<script>
+(function(){
+const SUP={'-':'⁻','0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹'};
+function fmt(v){
+  if(v==null||!isFinite(v)) return '—';
+  if(v===0) return '0';
+  const a=Math.abs(v);
+  if(a<1e-3||a>=1e6){let [m,e]=v.toExponential(3).split('e');m=String(parseFloat(m));e=String(parseInt(e,10));return m+'×10'+[...e].map(c=>SUP[c]).join('');}
+  return String(parseFloat(v.toPrecision(5)));
+}
+const sq=Math.sqrt, PI=Math.PI;
+const TU={s:[1,'s'],min:[60,'min'],hr:[3600,'hr']};
+const pickTU=T=>T>7200?'hr':T>120?'min':'s';
+function timeParts(s){const o=[fmt(s)+' s',fmt(s/60)+' min',fmt(s/3600)+' hr']; if(s>=86400) o.push(fmt(s/86400)+' day'); return o;}
+function invMono(f,target,a,b){let lo=a,hi=b;for(let i=0;i<200;i++){const m=(lo+hi)/2;if(f(m)<target)lo=m;else hi=m;}return (lo+hi)/2;}
+function simpson(f,a,b,n=1000){if(b<=a)return 0;const h=(b-a)/n;let s=f(a)+f(b);for(let i=1;i<n;i++)s+=f(a+i*h)*(i%2?4:2);return s*h/3;}
+
+/* ---------- expression parser for custom shapes ---------- */
+function compileExpr(src){
+  let s=String(src||'').trim().toLowerCase().replace(/\s+/g,'').replace(/×/g,'*').replace(/π/g,'pi');
+  if(!s) throw new Error('empty');
+  if(!/^[0-9a-z.+\-*/^(),]+$/.test(s)) throw new Error('chars');
+  const ok=new Set(['y','pi','e','sqrt','sin','cos','tan','asin','acos','atan','exp','ln','log','abs','pow','min','max']);
+  for(const w of (s.match(/[a-z]+/g)||[])) if(!ok.has(w)) throw new Error('id');
+  s=s.replace(/(\d|\))(?=[a-z(])/g,'$1*').replace(/\)(?=\d)/g,')*').replace(/\by\(/g,'y*(');
+  s=s.replace(/(^|[(*+\-/,^])-/g,'$1(-1)*').replace(/\^/g,'**');
+  s=s.replace(/[a-z]+/g,w=>({y:'y',pi:'Math.PI',e:'Math.E',ln:'Math.log',log:'Math.log10'})[w]||('Math.'+w));
+  const f=new Function('y','"use strict";return ('+s+');');
+  f(1); return f;
+}
+
+/* ---------- general numeric drain solver ---------- */
+function drainSolve(Af,holes,Cd,g,Qin,y0){
+  const hs=holes.map(o=>({a:PI*(o.d/1000)**2/4,h:o.h}));
+  const Qo=y=>{let q=0;for(const o of hs) if(y>o.h) q+=Cd*o.a*sq(2*g*(y-o.h));return q;};
+  const net=y=>Qo(y)-Qin;
+  const hmin=Math.min(...hs.map(o=>o.h));
+  if(!(hmin<y0)) return {err:'كل الفتحات أعلى من مستوى الماء الابتدائي، فالماء ما يطلع.'};
+  if(net(y0)<=0) return {err:'التصريف الداخل Qin أكبر من أو يساوي التصريف الخارج، فالخزان ما يتفرغ (الماء يرتفع أو يبقى ثابت).'};
+  let ylow=hmin,eq=false;
+  if(Qin>0){const n=4000;for(let i=1;i<=n;i++){const y=y0-(y0-hmin)*i/n;if(net(y)<=0){let a=y,b=y+(y0-hmin)/n;for(let j=0;j<80;j++){const m=(a+b)/2;if(net(m)<=0)a=m;else b=m;}ylow=b;eq=true;break;}}}
+  const S=sq(y0-ylow),s0=eq?sq(0.001)*S:0,N=4000;
+  const ys=new Float64Array(N+1),ts=new Float64Array(N+1),F=new Float64Array(N+1);
+  for(let k=0;k<=N;k++){const s=s0+(S-s0)*k/N,sv=(k===0&&!eq)?S*1e-6:s,u=ylow+sv*sv;ys[k]=ylow+s*s;F[k]=Af(u)*2*sv/net(u);}
+  ts[N]=0;for(let k=N-1;k>=0;k--) ts[k]=ts[k+1]+(F[k]+F[k+1])/2*(S-s0)/N;
+  const T=ts[0];
+  const y=t=>{if(t<=0)return y0;if(t>=T)return ys[0];let lo=0,hi=N;while(hi-lo>1){const m=(lo+hi)>>1;if(ts[m]>=t)lo=m;else hi=m;}const f=(ts[lo]-t)/(ts[lo]-ts[hi]||1);return ys[lo]+(ys[hi]-ys[lo])*f;};
+  const tOf=yy=>{if(yy>=y0)return 0;if(yy<ys[0])return eq?Infinity:T;let lo=0,hi=N;while(hi-lo>1){const m=(lo+hi)>>1;if(ys[m]<=yy)lo=m;else hi=m;}const f=(yy-ys[lo])/(ys[hi]-ys[lo]||1);return ts[lo]+(ts[hi]-ts[lo])*f;};
+  return {T,ylow,eq,hmin,Qo,net,y,tOf,hs};
+}
+
+/* ---------- 3D drawing ---------- */
+let GID=0;
+function grads(col){
+  const w='w'+(++GID),gl='g'+GID;
+  return {w,gl,defs:`<defs><linearGradient id="${w}" x1="0" x2="1"><stop offset="0" style="stop-color:${col};stop-opacity:1"/><stop offset=".3" style="stop-color:${col};stop-opacity:.5"/><stop offset=".55" style="stop-color:${col};stop-opacity:.62"/><stop offset="1" style="stop-color:${col};stop-opacity:1"/></linearGradient><linearGradient id="${gl}" x1="0" x2="1"><stop offset="0" style="stop-color:var(--ink);stop-opacity:.16"/><stop offset=".25" style="stop-color:var(--ink);stop-opacity:.03"/><stop offset=".7" style="stop-color:var(--ink);stop-opacity:.05"/><stop offset="1" style="stop-color:var(--ink);stop-opacity:.2"/></linearGradient></defs>`};
+}
+const COL='var(--water)';
+function jet(x1,y1,x2,y2,curve){
+  return curve?`<path class="jet" d="M${x1} ${y1} q${(x2-x1)*.7} ${(y2-y1)*.1} ${x2-x1} ${y2-y1}" fill="none" stroke="${COL}" stroke-width="3" stroke-linecap="round"/>`
+    :`<line class="jet" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${COL}" stroke-width="3.5" stroke-linecap="round"/>`;
+}
+function dimLine(x,wy,bot){
+  x=+x;wy=+wy;bot=+bot;
+  if(bot-wy<3) return '';
+  return `<line x1="${x}" x2="${x}" y1="${wy}" y2="${bot}" stroke="var(--accent)" stroke-width="1.5"/><line x1="${x-5}" x2="${x+5}" y1="${wy}" y2="${wy}" stroke="var(--accent)" stroke-width="1.5"/><line x1="${x-5}" x2="${x+5}" y1="${bot}" y2="${bot}" stroke="var(--accent)" stroke-width="1.5"/>${bot-wy>16?`<text x="${x+7}" y="${(wy+bot)/2+4}" font-size="13" fill="var(--accent)" font-family="IBM Plex Mono">y</text>`:''}`;
+}
+const f1=v=>(+v).toFixed(1);
+/* solid of revolution with radius profile rf(y) */
+function svgRev(rf,H,yw,holes){
+  const G=grads(COL),cx=118,K=0.2,n=90,pts=[];let rmax=0;
+  const R=y=>Math.max(0,rf(y)||0);
+  for(let i=0;i<=n;i++){const y=H*i/n,r=R(y);pts.push([y,r]);rmax=Math.max(rmax,r);}
+  if(!(rmax>0)) rmax=1;
+  const sc=Math.min(200/H,90/rmax),hp=H*sc,top=Math.max(30,(262-hp)/2),bot=top+hp;
+  const X=r=>r*sc,Y=y=>bot-y*sc;
+  const body=yt=>{const sub=pts.filter(p=>p[0]<yt-1e-12);sub.push([yt,R(yt)]);let d='';
+    for(let i=sub.length-1;i>=0;i--) d+=(i===sub.length-1?'M':'L')+f1(cx-X(sub[i][1]))+' '+f1(Y(sub[i][0]));
+    const r0=X(sub[0][1]); if(r0>0.5) d+=`A${f1(r0)} ${f1(r0*K)} 0 0 0 ${f1(cx+r0)} ${f1(bot)}`;
+    for(let i=0;i<sub.length;i++) d+='L'+f1(cx+X(sub[i][1]))+' '+f1(Y(sub[i][0]));
+    const rt=X(R(yt)); if(rt>0.5) d+=`A${f1(rt)} ${f1(rt*K)} 0 0 1 ${f1(cx-rt)} ${f1(Y(yt))}`;
+    return d+'Z';};
+  const r0=X(R(0)),rT=X(R(H)),wy=Y(yw);
+  let s=G.defs+`<path d="${body(H)}" fill="url(#${G.gl})"/>`;
+  if(r0>0.5) s+=`<path d="M${f1(cx-r0)} ${f1(bot)} A${f1(r0)} ${f1(r0*K)} 0 0 1 ${f1(cx+r0)} ${f1(bot)}" fill="none" stroke="var(--muted)" stroke-dasharray="4 4"/>`;
+  holes.filter(h=>h.h>0).forEach(h=>{const rr=X(R(h.h));if(rr>1) s+=`<path d="M${f1(cx-rr)} ${f1(Y(h.h))} A${f1(rr)} ${f1(rr*K)} 0 0 0 ${f1(cx+rr)} ${f1(Y(h.h))}" fill="none" stroke="var(--muted)" stroke-dasharray="2 4"/>`;});
+  if(yw>H*0.002){
+    const rw=X(R(yw));
+    s+=`<path d="${body(yw)}" fill="url(#${G.w})"/>`;
+    s+=`<ellipse cx="${cx}" cy="${f1(wy)}" rx="${f1(rw)}" ry="${f1(rw*K)}" style="fill:${COL};fill-opacity:.35;stroke:${COL}" stroke-width="1.5"/>`;
+    s+=`<ellipse cx="${f1(cx-rw*.28)}" cy="${f1(wy-rw*K*.15)}" rx="${f1(rw*.38)}" ry="${f1(rw*K*.3)}" fill="#fff" fill-opacity=".25"/>`;
+  }
+  let side='M'; for(let i=n;i>=0;i--) side+=(i===n?'':'L')+f1(cx-X(pts[i][1]))+' '+f1(Y(pts[i][0]));
+  if(r0>0.5) side+=`A${f1(r0)} ${f1(r0*K)} 0 0 0 ${f1(cx+r0)} ${f1(bot)}`;
+  for(let i=0;i<=n;i++) side+='L'+f1(cx+X(pts[i][1]))+' '+f1(Y(pts[i][0]));
+  s+=`<path d="${side}" fill="none" stroke="var(--ink)" stroke-width="2" stroke-linejoin="round"/>`;
+  if(rT>0.5) s+=`<ellipse cx="${cx}" cy="${f1(top)}" rx="${f1(rT)}" ry="${f1(rT*K)}" fill="none" stroke="var(--ink)" stroke-width="2"/>`;
+  const bh=holes.filter(h=>h.h<=0);
+  bh.forEach((h,j)=>{const x=cx+(j-(bh.length-1)/2)*14,y1=bot+(r0>0.5?r0*K:0)+1; s+=`<circle cx="${f1(x)}" cy="${f1(y1-1)}" r="2.5" fill="var(--ink)"/>`; if(yw>H*0.002) s+=jet(f1(x),f1(y1),f1(x),f1(y1+32));});
+  holes.filter(h=>h.h>0).forEach(h=>{const rr=X(R(h.h)),hx=cx+rr*.64,hy=Y(h.h)+rr*K*.77;s+=`<ellipse cx="${f1(hx)}" cy="${f1(hy)}" rx="4.5" ry="3.5" fill="var(--ink)"/>`;if(yw>h.h+H*0.002) s+=jet(f1(hx+3),f1(hy),f1(hx+46),f1(hy+50),true);});
+  s+=dimLine(f1(cx+X(rmax)+18),f1(wy),f1(bot));
+  return s;
+}
+/* rectangular box */
+function svgBox(L,W,H,yw,holes){
+  const G=grads(COL),sc=Math.min(185/(L+0.433*W),200/(H+0.25*W)),lp=L*sc,ox=0.433*W*sc,oy=0.25*W*sc,hp=H*sc;
+  const x0=(250-lp-ox)/2+6,bot=Math.max(30,(262-hp-oy)/2)+oy+hp,tp=bot-hp,wy=bot-yw*sc;
+  const P=a=>a.map(p=>f1(p[0])+','+f1(p[1])).join(' ');
+  let s=G.defs;
+  s+=`<polygon points="${P([[x0,tp],[x0+lp,tp],[x0+lp+ox,tp-oy],[x0+ox,tp-oy]])}" fill="url(#${G.gl})"/>`;
+  s+=`<rect x="${f1(x0)}" y="${f1(tp)}" width="${f1(lp)}" height="${f1(hp)}" fill="url(#${G.gl})"/>`;
+  s+=`<polygon points="${P([[x0+lp,tp],[x0+lp+ox,tp-oy],[x0+lp+ox,bot-oy],[x0+lp,bot]])}" fill="url(#${G.gl})"/>`;
+  s+=`<path d="M${f1(x0)} ${f1(bot)} L${f1(x0+ox)} ${f1(bot-oy)} L${f1(x0+lp+ox)} ${f1(bot-oy)} M${f1(x0+ox)} ${f1(bot-oy)} L${f1(x0+ox)} ${f1(tp-oy)}" fill="none" stroke="var(--muted)" stroke-dasharray="4 4"/>`;
+  if(yw>H*0.002){
+    s+=`<polygon points="${P([[x0+lp,wy],[x0+lp+ox,wy-oy],[x0+lp+ox,bot-oy],[x0+lp,bot]])}" style="fill:${COL};fill-opacity:.85"/>`;
+    s+=`<rect x="${f1(x0)}" y="${f1(wy)}" width="${f1(lp)}" height="${f1(bot-wy)}" fill="url(#${G.w})"/>`;
+    s+=`<polygon points="${P([[x0,wy],[x0+lp,wy],[x0+lp+ox,wy-oy],[x0+ox,wy-oy]])}" style="fill:${COL};fill-opacity:.35;stroke:${COL}" stroke-width="1.5"/>`;
+  }
+  s+=`<path d="M${f1(x0)} ${f1(tp)} L${f1(x0)} ${f1(bot)} L${f1(x0+lp)} ${f1(bot)} L${f1(x0+lp+ox)} ${f1(bot-oy)} L${f1(x0+lp+ox)} ${f1(tp-oy)} L${f1(x0+ox)} ${f1(tp-oy)} Z M${f1(x0)} ${f1(tp)} L${f1(x0+lp)} ${f1(tp)} L${f1(x0+lp+ox)} ${f1(tp-oy)} M${f1(x0+lp)} ${f1(tp)} L${f1(x0+lp)} ${f1(bot)}" fill="none" stroke="var(--ink)" stroke-width="2" stroke-linejoin="round"/>`;
+  const bh=holes.filter(h=>h.h<=0);
+  bh.forEach((h,j)=>{const x=x0+lp/2+ox/2+(j-(bh.length-1)/2)*14; if(yw>H*0.002) s+=jet(f1(x),f1(bot+2),f1(x),f1(bot+34));});
+  holes.filter(h=>h.h>0).forEach(h=>{const hx=x0+lp*0.8,hy=bot-h.h*sc;s+=`<circle cx="${f1(hx)}" cy="${f1(hy)}" r="4" fill="var(--ink)"/>`;if(yw>h.h+H*0.002) s+=jet(f1(hx+3),f1(hy),f1(hx+44),f1(hy+50),true);});
+  s+=dimLine(f1(x0-14),f1(wy),f1(bot));
+  return s;
+}
+function hull(P){P=P.slice().sort((a,b)=>a[0]-b[0]||a[1]-b[1]);const cr=(o,a,b)=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]);const lo=[],up=[];for(const p of P){while(lo.length>=2&&cr(lo[lo.length-2],lo[lo.length-1],p)<=0)lo.pop();lo.push(p);}for(let i=P.length-1;i>=0;i--){const p=P[i];while(up.length>=2&&cr(up[up.length-2],up[up.length-1],p)<=0)up.pop();up.push(p);}up.pop();lo.pop();return lo.concat(up);}
+/* horizontal cylinder */
+function svgHCyl(Rr,L,yw,holes){
+  const G=grads(COL),sc=Math.min(190/(2*Rr+0.45*L),205/(2*Rr+0.28*L)),Rp=Rr*sc,ox=0.45*L*sc,oy=0.28*L*sc;
+  const cxf=(250-(2*Rp+ox))/2+Rp+10,cyf=Math.max(30,(262-2*Rp-oy)/2)+oy+Rp,H=2*Rr;
+  const P=a=>a.map(p=>f1(p[0])+','+f1(p[1])).join(' ');
+  const circ=[];for(let i=0;i<96;i++){const a=2*PI*i/96;circ.push([cxf+Rp*Math.cos(a),cyf+Rp*Math.sin(a)]);}
+  const sweep=pts=>hull(pts.concat(pts.map(p=>[p[0]+ox,p[1]-oy])));
+  let s=G.defs+`<polygon points="${P(sweep(circ))}" fill="url(#${G.gl})"/>`;
+  s+=`<circle cx="${f1(cxf+ox)}" cy="${f1(cyf-oy)}" r="${f1(Rp)}" fill="none" stroke="var(--muted)" stroke-dasharray="4 4"/>`;
+  const yc=cyf+Rp-yw*sc,dy=Rp-yw*sc,half=sq(Math.max(Rp*Rp-dy*dy,0)),bot=cyf+Rp;
+  if(yw>H*0.002){
+    const seg=circ.filter(p=>p[1]>=yc);seg.push([cxf-half,yc],[cxf+half,yc]);
+    s+=`<polygon points="${P(sweep(seg))}" fill="url(#${G.w})"/>`;
+    s+=`<polygon points="${P([[cxf-half,yc],[cxf+half,yc],[cxf+half+ox,yc-oy],[cxf-half+ox,yc-oy]])}" style="fill:${COL};fill-opacity:.35;stroke:${COL}" stroke-width="1.5"/>`;
+    s+=`<path d="M${f1(cxf-half)} ${f1(yc)} A${f1(Rp)} ${f1(Rp)} 0 ${yw>Rr?1:0} 0 ${f1(cxf+half)} ${f1(yc)} Z" style="fill:${COL};fill-opacity:.45"/>`;
+  }
+  s+=`<polygon points="${P(sweep(circ))}" fill="none" stroke="var(--ink)" stroke-width="2" stroke-linejoin="round"/>`;
+  s+=`<circle cx="${f1(cxf)}" cy="${f1(cyf)}" r="${f1(Rp)}" fill="none" stroke="var(--ink)" stroke-width="2"/>`;
+  const bh=holes.filter(h=>h.h<=0);
+  bh.forEach((h,j)=>{const x=cxf+ox/2+(j-(bh.length-1)/2)*14,y1=bot-oy/2+2; if(yw>H*0.002) s+=jet(f1(x),f1(y1),f1(x),f1(y1+32));});
+  holes.filter(h=>h.h>0).forEach(h=>{const d2=Rp-h.h*sc,hx=cxf+sq(Math.max(Rp*Rp-d2*d2,0))*0.85,hy=bot-h.h*sc;s+=`<circle cx="${f1(hx)}" cy="${f1(hy)}" r="4" fill="var(--ink)"/>`;if(yw>h.h+H*0.002) s+=jet(f1(hx+3),f1(hy),f1(hx+40),f1(hy+46),true);});
+  s+=dimLine(f1(cxf-Rp-14),f1(yc),f1(bot));
+  return s;
+}
+
+/* ---------- models ---------- */
+const CD={id:'Cd',grp:'c',label:'معامل التصريف',sym:'Cd',def:1,hint:'إذا ما معطى بالسؤال نأخذه 1'};
+const G0={id:'g',grp:'c',label:'التعجيل الأرضي',sym:'g',unit:'m/s²',q:'acc',def:9.8};
+const Q0=(Cd,d,g,y)=>Cd*PI*(d/1000)**2/4*sq(2*g*Math.max(y,0));
+const models={
+ cyl:{tab:'أسطواني',icon:'<rect x="5" y="3" width="14" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="2"/>',
+  title:'خزان أسطواني بفتحة بالقاع',
+  desc:'مثال 1 بالملزمة: خزان دائري قائم نصف قطره 3 m وارتفاعه 10 m، بقاعه فتحة.',
+  fields:[{id:'R',grp:'d',label:'نصف قطر الخزان',sym:'R',unit:'m',q:'len',def:3},{id:'H',grp:'d',label:'ارتفاع الخزان',sym:'H',unit:'m',q:'len',def:10},
+   {id:'y0',grp:'d',label:'العمق الابتدائي',sym:'y₀',unit:'m',q:'len',def:10,hint:'إذا الخزان مليان = H'},
+   {id:'d',grp:'h',label:'قطر الفتحة',sym:'d',unit:'mm',q:'dia',def:10,hint:'1 cm = 10 mm'},CD,G0],
+  compute(p){
+   const {R,H,y0,d,Cd,g}=p;
+   if(!(R>0&&H>0&&d>0&&Cd>0&&g>0)) return {err:'كل القيم لازم تكون أكبر من صفر.'};
+   if(!(y0>0&&y0<=H)) return {err:'العمق الابتدائي لازم يكون بين 0 و H.'};
+   const dm=d/1000,a=PI*dm*dm/4,k=Cd*dm*dm*sq(2*g)/(4*R*R),C=2*sq(y0),T=C/k;
+   return {H,y0,T,y:t=>t>=T?0:(sq(y0)-k*t/2)**2,tOf:y=>(C-2*sq(y))/k,draw:yw=>svgRev(()=>R,H,yw,[{h:0}]),
+    eqs:[`2√y = −${fmt(k)} t + ${fmt(C)}`,`y(t) = ( ${fmt(sq(y0))} − ${fmt(k/2)} t )²`],
+    cards:[['العمق الابتدائي',fmt(y0)+' m'],['حجم الماء الابتدائي',fmt(PI*R*R*y0)+' m³'],['التصريف الابتدائي Qout',fmt(Q0(Cd,d,g,y0))+' m³/s']],
+    steps:[
+     ['معادلة الاستمرارية، ولا يوجد تصريف داخل (Qin = 0):','dV/dt = Qin − Qout = − Cd·a·√(2gy)'],
+     ['مساحة الفتحة:',`a = π d²/4 = π (${fmt(dm)})²/4 = ${fmt(a)} m²`],
+     ['المقطع الأفقي ثابت للأسطوانة: dV = πR² dy',`πR² dy/dt = − Cd·(πd²/4)·√(2g)·y^½`],
+     ['نفصل المتغيرات:',`dy / y^½ = − [Cd·d²·√(2g) / (4R²)] dt = − ${fmt(k)} dt`],
+     ['نكامل الطرفين:',`2 y^½ = − ${fmt(k)} t + C`],
+     [`الشرط الابتدائي: عند t = 0 يكون y = ${fmt(y0)} m`,`C = 2√${fmt(y0)} = ${fmt(C)}`],
+     ['وقت التفريغ (y = 0):',`t = C / ${fmt(k)} = ${fmt(T)} s`]]};
+  }},
+ cone:{tab:'مخروطي',icon:'<polygon points="3,4 21,4 12,21" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+  title:'خزان مخروطي (الرأس للأسفل)',
+  desc:'مثال 2 بالملزمة: مخروط نصف قطر فوهته 3 m وارتفاعه 10 m، والفتحة بالرأس.',
+  fields:[{id:'Rt',grp:'d',label:'نصف قطر الفوهة',sym:'Rₜ',unit:'m',q:'len',def:3},{id:'H',grp:'d',label:'ارتفاع المخروط',sym:'H',unit:'m',q:'len',def:10},
+   {id:'y0',grp:'d',label:'العمق الابتدائي',sym:'y₀',unit:'m',q:'len',def:10,hint:'إذا الخزان مليان = H'},
+   {id:'d',grp:'h',label:'قطر الفتحة',sym:'d',unit:'mm',q:'dia',def:10,hint:'1 cm = 10 mm'},CD,G0],
+  compute(p){
+   const {Rt,H,y0,d,Cd,g}=p;
+   if(!(Rt>0&&H>0&&d>0&&Cd>0&&g>0)) return {err:'كل القيم لازم تكون أكبر من صفر.'};
+   if(!(y0>0&&y0<=H)) return {err:'العمق الابتدائي لازم يكون بين 0 و H.'};
+   const dm=d/1000,ratio=Rt/H,K=Cd*dm*dm*sq(2*g)/(4*ratio*ratio),C=0.4*y0**2.5,T=C/K;
+   return {H,y0,T,y:t=>t>=T?0:((C-K*t)/0.4)**0.4,tOf:y=>(C-0.4*y**2.5)/K,draw:yw=>svgRev(y=>ratio*y,H,yw,[{h:0}]),
+    eqs:[`(2/5) y^(5/2) = −${fmt(K)} t + ${fmt(C)}`,`y(t) = ( ${fmt(y0**2.5)} − ${fmt(2.5*K)} t )^(2/5)`],
+    cards:[['العمق الابتدائي',fmt(y0)+' m'],['حجم الماء الابتدائي',fmt(PI*ratio*ratio*y0**3/3)+' m³'],['التصريف الابتدائي Qout',fmt(Q0(Cd,d,g,y0))+' m³/s']],
+    steps:[
+     ['معادلة الاستمرارية (Qin = 0):','dV/dt = − Cd·(πd²/4)·√(2gy)'],
+     ['من تشابه المثلثات: y/x = H/Rₜ',`x = (${fmt(Rt)}/${fmt(H)}) y = ${fmt(ratio)} y`],
+     ['المساحة A(y) = πx²:',`π(${fmt(ratio)})² y² dy/dt = − Cd·π(${fmt(dm)})²/4·√(2g)·y^½`],
+     ['نفصل المتغيرات:',`y^(3/2) dy = − [Cd·d²·√(2g) / (4(Rₜ/H)²)] dt = − ${fmt(K)} dt`],
+     ['نكامل:',`(2/5) y^(5/2) = − ${fmt(K)} t + C`],
+     [`عند t = 0 يكون y = ${fmt(y0)} m`,`C = (2/5)(${fmt(y0)})^(5/2) = ${fmt(C)}`],
+     ['وقت التفريغ (y = 0):',`t = ${fmt(C)} / ${fmt(K)} = ${fmt(T)} s`]]};
+  }},
+ hemi:{tab:'نصف كروي',icon:'<path d="M3 6 A9 9 0 0 0 21 6 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+  title:'خزان نصف كروي',
+  desc:'مثال 3 بالملزمة: نصف كرة نصف قطرها 2 m، فتحة قطرها 2 cm، العمق 0.5 m بعد ساعة، و Cd = 1.',
+  fields:[{id:'R',grp:'d',label:'نصف قطر الكرة',sym:'R',unit:'m',q:'len',def:2},
+   {id:'mode',grp:'d',type:'select',label:'المعطى بالسؤال',def:'pt',options:[['pt','عمق بعد زمن معين'],['y0','العمق الابتدائي']]},
+   {id:'y0',grp:'d',label:'العمق الابتدائي',sym:'y₀',unit:'m',q:'len',def:2,show:p=>p.mode==='y0'},
+   {id:'t1',grp:'d',label:'الزمن المعروف',sym:'t₁',unit:'s',q:'time',def:3600,hint:'1 hr = 3600 s',show:p=>p.mode==='pt'},
+   {id:'y1',grp:'d',label:'العمق عند هذا الزمن',sym:'y₁',unit:'m',q:'len',def:0.5,show:p=>p.mode==='pt'},
+   {id:'d',grp:'h',label:'قطر الفتحة',sym:'d',unit:'mm',q:'dia',def:20,hint:'2 cm = 20 mm'},CD,G0],
+  compute(p){
+   const {R,d,Cd,g,mode}=p;
+   if(!(R>0&&d>0&&Cd>0&&g>0)) return {err:'كل القيم لازم تكون أكبر من صفر.'};
+   const dm=d/1000,K=Cd*dm*dm/4*sq(2*g),F=y=>4*R/3*y**1.5-0.4*y**2.5,FR=F(R);
+   let C,y0,bc;
+   if(mode==='y0'){y0=p.y0;if(!(y0>0&&y0<=R)) return {err:'العمق الابتدائي لازم يكون بين 0 و R.'};
+     C=F(y0);bc=[`عند t = 0 يكون y = ${fmt(y0)} m`,`C = (4·${fmt(R)}/3)(${fmt(y0)})^(3/2) − (2/5)(${fmt(y0)})^(5/2) = ${fmt(C)}`];
+   }else{const {t1,y1}=p;if(!(y1>0&&y1<=R&&t1>=0)) return {err:'العمق المعروف لازم يكون بين 0 و R والزمن موجب.'};
+     C=F(y1)+K*t1;if(C>FR) return {err:'هاي البيانات تعني إن العمق الابتدائي أكبر من R (الخزان ما يستوعب). تأكد من الأرقام.'};
+     y0=invMono(F,C,0,R);bc=[`الشرط: عند t = ${fmt(t1)} s يكون y = ${fmt(y1)} m`,`C = ${fmt(F(y1))} + ${fmt(K)}×${fmt(t1)} = ${fmt(C)}`];}
+   const T=C/K;
+   return {H:R,y0,T,y:t=>t>=T?0:invMono(F,C-K*t,0,R),tOf:y=>(C-F(y))/K,draw:yw=>svgRev(y=>sq(Math.max(0,2*R*y-y*y)),R,yw,[{h:0}]),
+    eqs:[`(${fmt(4*R/3)}) y^(3/2) − 0.4 y^(5/2) = −${fmt(K)} t + ${fmt(C)}`],
+    note:'العمق بأي زمن ينحسب عددياً (طريقة التنصيف) لأن المعادلة ما تنحل مباشرة لـ y.',
+    cards:[['العمق الابتدائي (محسوب)',fmt(y0)+' m'],['حجم الماء الابتدائي',fmt(PI*(R*y0*y0-y0**3/3))+' m³'],['التصريف الابتدائي Qout',fmt(Q0(Cd,d,g,y0))+' m³/s']],
+    steps:[
+     ['من المثلث القائم داخل الكرة: R² = x² + (R − y)²',`x² = 2Ry − y² = ${fmt(2*R)}y − y²`],
+     ['المساحة A(y) = π(2Ry − y²) ومعادلة الاستمرارية:',`π(${fmt(2*R)}y − y²) dy/dt = − Cd·π(d/2)²·√(2gy)`],
+     ['نختصر π ونفصل المتغيرات:',`(${fmt(2*R)}y − y²)/√y dy = − ${fmt(K)} dt`],
+     ['نكامل ∫(2R y^½ − y^(3/2)) dy:',`(4R/3) y^(3/2) − (2/5) y^(5/2) = − ${fmt(K)} t + C`],
+     bc,
+     ['وقت التفريغ (y = 0):',`t = ${fmt(C)} / ${fmt(K)} = ${fmt(T)} s`]]};
+  }},
+ two:{tab:'فتحتين',icon:'<rect x="5" y="3" width="14" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="19" cy="12" r="1.8" fill="currentColor"/>',
+  title:'أسطواني بفتحتين (جانبية وقاع)',
+  desc:'مثال 4 بالملزمة: فتحة بالقاع وفتحة جانبية على ارتفاع h (بالملزمة h = H/2)، الفتحتين بنفس الحجم.',
+  fields:[{id:'R',grp:'d',label:'نصف قطر الخزان',sym:'R',unit:'m',q:'len',def:1},{id:'H',grp:'d',label:'ارتفاع الخزان',sym:'H',unit:'m',q:'len',def:4},
+   {id:'y0',grp:'d',label:'العمق الابتدائي',sym:'y₀',unit:'m',q:'len',def:4,hint:'إذا الخزان مليان = H'},
+   {id:'hs',grp:'h',label:'ارتفاع الفتحة الجانبية',sym:'h',unit:'m',q:'len',def:2,hint:'بالملزمة h = H/2'},
+   {id:'d',grp:'h',label:'قطر الفتحتين',sym:'d',unit:'mm',q:'dia',def:50},CD,G0],
+  compute(p){
+   const {R,H,y0,hs,d,Cd,g}=p;
+   if(!(R>0&&H>0&&d>0&&Cd>0&&g>0)) return {err:'كل القيم لازم تكون أكبر من صفر.'};
+   if(!(y0>0&&y0<=H)) return {err:'العمق الابتدائي لازم يكون بين 0 و H.'};
+   if(!(hs>0&&hs<H)) return {err:'ارتفاع الفتحة الجانبية لازم يكون بين 0 و H.'};
+   const dm=d/1000,k=Cd*dm*dm*sq(2*g)/(4*R*R),G=y=>y**1.5-(y-hs)**1.5,c1=2/(3*hs*k);
+   const st1=y0>hs,t1=st1?c1*(G(y0)-hs**1.5):0,hb=Math.min(y0,hs),T=t1+2*sq(hb)/k;
+   const y=t=>{if(t>=T)return 0;if(st1&&t<t1)return invMono(G,G(y0)-t/c1,hs,y0);return (sq(hb)-k*(t-t1)/2)**2;};
+   const tOf=yy=>(st1&&yy>hs)?c1*(G(y0)-G(yy)):t1+2*(sq(hb)-sq(Math.min(yy,hb)))/k;
+   const eqs=[];
+   if(st1) eqs.push(`y > ${fmt(hs)} :  y^(3/2) − (y − ${fmt(hs)})^(3/2) = ${fmt(G(y0))} − ${fmt(1/c1)} t`);
+   eqs.push(`y ≤ ${fmt(hs)} :  2√y = ${fmt(2*sq(hb))} − ${fmt(k)} (t − ${fmt(t1)})`);
+   const steps=[['تصريف الفتحة الأولى (القاع) والثانية (الجانب):','Qout₁ = Cd·πr²·√(2gy) ,  Qout₂ = Cd·πr²·√(2g(y − h))']];
+   if(st1) steps.push(
+     ['الحالة 1 (y > h): الفتحتين يشتغلن','πR² dy/dt = − πr²√(2g) [ y^½ + (y − h)^½ ]'],
+     ['نضرب بالمرافق (√y − √(y−h))/h ونكامل:',`y^(3/2) − (y − h)^(3/2) = − (3h/2)·k·t + C ,  k = Cd(r/R)²√(2g) = ${fmt(k)}`],
+     [`زمن نزول الماء من ${fmt(y0)} m إلى مستوى الفتحة ${fmt(hs)} m:`,`t₁ = 2/(3hk)·[ (${fmt(y0)}^(3/2) − ${fmt(y0-hs)}^(3/2)) − ${fmt(hs)}^(3/2) ] = ${fmt(t1)} s`]);
+   steps.push(
+     ['الحالة 2 (y ≤ h): بس فتحة القاع تشتغل','πR² dy/dt = − πr²√(2gy)  →  dy/√y = − (r/R)²√(2g) dt'],
+     ['نكامل:',`2√y = − ${fmt(k)} t + C`],
+     [`الشرط: عند t = ${fmt(t1)} s يكون y = ${fmt(hb)} m`,`C = 2√${fmt(hb)} + ${fmt(k)}×${fmt(t1)} = ${fmt(2*sq(hb)+k*t1)}`],
+     ['وقت التفريغ الكلي (y = 0):',`T = ${fmt(t1)} + 2√${fmt(hb)} / ${fmt(k)} = ${fmt(T)} s`]);
+   const tp=timeParts(t1);
+   return {H,y0,T,y,tOf,eqs,steps,draw:yw=>svgRev(()=>R,H,yw,[{h:0},{h:hs}]),
+    cards:[['زمن الوصول للفتحة الجانبية',st1?tp[2]:'—',st1?tp[0]+' · '+tp[1]:'الماء أصلاً تحت الفتحة'],['حجم الماء الابتدائي',fmt(PI*R*R*y0)+' m³'],
+     ['التصريف الابتدائي Qout',fmt(Q0(Cd,d,g,y0)+Q0(Cd,d,g,y0-hs))+' m³/s']]};
+  }},
+ gen:{tab:'أي شكل',icon:'<path d="M7 3h10l-2 6 4 12H5l4-12z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+  title:'أي شكل خزان',
+  desc:'اختار الشكل أو اكتب معادلته، وأضف أي عدد من الفتحات بأي ارتفاع. الحل بتكامل عددي لمعادلة الاستمرارية العامة.',
+  fields:[
+   {id:'shape',grp:'d',type:'select',full:true,label:'شكل الخزان',def:'frustum',options:[['frustum','مخروط ناقص أو مقلوب (نصف القطر يتغير خطياً)'],['box','صندوق مستطيل'],['sphere','كرة كاملة'],['hcyl','أسطوانة أفقية (نايمة)'],['rev','شكل دوراني: أكتب معادلة نصف القطر r(y)'],['area','أكتب معادلة مساحة المقطع A(y)']]},
+   {id:'r1',grp:'d',label:'نصف القطر بالأسفل',sym:'r₁',unit:'m',q:'len',def:0.5,hint:'صفر = رأس مخروط',show:p=>p.shape==='frustum'},
+   {id:'r2',grp:'d',label:'نصف القطر بالأعلى',sym:'r₂',unit:'m',q:'len',def:1.5,hint:'صفر = مخروط مقلوب',show:p=>p.shape==='frustum'},
+   {id:'L',grp:'d',label:'الطول',sym:'L',unit:'m',q:'len',def:3,show:p=>p.shape==='box'},
+   {id:'W',grp:'d',label:'العرض',sym:'W',unit:'m',q:'len',def:2,show:p=>p.shape==='box'},
+   {id:'Rs',grp:'d',label:'نصف القطر',sym:'R',unit:'m',q:'len',def:1,show:p=>p.shape==='sphere'||p.shape==='hcyl'},
+   {id:'Lh',grp:'d',label:'طول الأسطوانة',sym:'L',unit:'m',q:'len',def:4,show:p=>p.shape==='hcyl'},
+   {id:'expr',grp:'d',type:'text',full:true,label:'المعادلة بدلالة y',def:'0.5+0.4*y',hint:'أمثلة: 0.5+0.4*y أو sqrt(y) أو pi*(4*y-y^2) · تقبل sqrt, sin, cos, exp, ln, ^, pi',show:p=>p.shape==='rev'||p.shape==='area'},
+   {id:'H',grp:'d',label:'ارتفاع الخزان',sym:'H',unit:'m',q:'len',def:3,show:p=>!(p.shape==='sphere'||p.shape==='hcyl')},
+   {id:'y0',grp:'d',label:'العمق الابتدائي',sym:'y₀',unit:'m',q:'len',def:3,hint:'لازم ما يتجاوز ارتفاع الخزان'},
+   {id:'Qin',grp:'c',label:'تصريف داخل للخزان',sym:'Qin',unit:'m³/s',q:'flow',def:0,hint:'إذا ماكو خليه 0'},CD,G0],
+  holesDef:[{d:50,h:0}],
+  compute(p){
+   const {Cd,g,Qin,y0}=p, sh=p.shape;
+   if(!(Cd>0&&g>0&&Qin>=0)) return {err:'تأكد إن Cd و g أكبر من صفر و Qin مو سالب.'};
+   let H,Af,rf,aText,draw;
+   const pos=v=>v>0;
+   if(sh==='box'){ if(!(pos(p.L)&&pos(p.W)&&pos(p.H))) return {err:'الطول والعرض والارتفاع لازم تكون أكبر من صفر.'};
+     H=p.H;Af=()=>p.L*p.W;aText=`A = L × W = ${fmt(p.L)} × ${fmt(p.W)} = ${fmt(p.L*p.W)} m²`;
+     draw=(yw,ho)=>svgBox(p.L,p.W,H,yw,ho);
+   } else if(sh==='frustum'){ if(!(p.r1>=0&&p.r2>=0&&(p.r1>0||p.r2>0)&&pos(p.H))) return {err:'أنصاف الأقطار لازم ما تكون سالبة، والارتفاع أكبر من صفر.'};
+     H=p.H;rf=y=>p.r1+(p.r2-p.r1)*y/H;Af=y=>PI*rf(y)**2;aText=`r(y) = ${fmt(p.r1)} + ${fmt((p.r2-p.r1)/H)} y ,  A(y) = π r(y)²`;
+   } else if(sh==='sphere'){ if(!pos(p.Rs)) return {err:'نصف القطر لازم يكون أكبر من صفر.'};
+     const R=p.Rs;H=2*R;rf=y=>sq(Math.max(0,2*R*y-y*y));Af=y=>PI*Math.max(0,2*R*y-y*y);aText=`A(y) = π(2Ry − y²) = π(${fmt(2*R)}y − y²)`;
+   } else if(sh==='hcyl'){ if(!(pos(p.Rs)&&pos(p.Lh))) return {err:'نصف القطر والطول لازم يكونون أكبر من صفر.'};
+     const R=p.Rs,L=p.Lh;H=2*R;Af=y=>2*L*sq(Math.max(0,2*R*y-y*y));aText=`A(y) = 2L√(2Ry − y²) = ${fmt(2*L)}√(${fmt(2*R)}y − y²)`;
+     draw=(yw,ho)=>svgHCyl(R,L,yw,ho);
+   } else {
+     if(!pos(p.H)) return {err:'الارتفاع لازم يكون أكبر من صفر.'};
+     H=p.H; let f;
+     try{f=compileExpr(p.expr);}catch(e){return {err:'المعادلة مكتوبة بشكل غير صحيح. استخدم y والأرقام والعمليات + − * / ^ والدوال مثل sqrt و sin.'};}
+     for(let i=0;i<=200;i++){const y=H*i/200,v=f(y);if(!isFinite(v)||v<0) return {err:`المعادلة تعطي قيمة ${isFinite(v)?'سالبة':'غير معرفة'} عند y = ${fmt(y)} m. لازم تكون موجبة بكل ارتفاع الخزان.`};}
+     if(sh==='rev'){rf=y=>f(y);Af=y=>PI*f(y)**2;aText=`r(y) = ${p.expr} ,  A(y) = π r(y)²`;}
+     else {Af=y=>f(y);rf=y=>sq(Math.max(0,f(y))/PI);aText=`A(y) = ${p.expr}`;}
+   }
+   if(!draw) draw=(yw,ho)=>svgRev(rf,H,yw,ho);
+   if(!(y0>0&&y0<=H*1.000001)) return {err:`العمق الابتدائي لازم يكون بين 0 و ${fmt(H)} m.`};
+   const holes=(p.holes||[]);
+   if(!holes.length) return {err:'أضف فتحة وحدة على الأقل.'};
+   for(const [i,o] of holes.entries()){ if(!(o.d>0)) return {err:`قطر الفتحة ${i+1} لازم يكون أكبر من صفر.`}; if(!(o.h>=0&&o.h<H)) return {err:`ارتفاع الفتحة ${i+1} لازم يكون بين 0 و ${fmt(H)} m.`}; }
+   const S=drainSolve(Af,holes,Cd,g,Qin,y0);
+   if(S.err) return S;
+   const terms=S.hs.map(o=>`${fmt(Cd*o.a*sq(2*g))}·√(y${o.h>0?' − '+fmt(o.h):''})`).join(' + ');
+   let final;
+   if(S.eq) final=['الخزان يستقر عند',fmt(S.ylow)+' m','Qout = Qin هنا، فما يفرغ بالكامل'];
+   else if(S.hmin>0) final=['يبقى ماء بعمق',fmt(S.hmin)+' m','تحت أوطى فتحة'];
+   else final=['العمق الابتدائي',fmt(y0)+' m','يفرغ بالكامل'];
+   const steps=[
+     ['معادلة الاستمرارية العامة:','dV/dt = ΣQin − ΣQout'],
+     ['مساحة المقطع الأفقي للخزان عند العمق y:',aText],
+     ['تصريف كل فتحة (تشتغل بس إذا الماء أعلى منها):','Qout,i = Cd·aᵢ·√(2g(y − hᵢ)) ,  aᵢ = π dᵢ²/4'],
+     ...S.hs.map((o,i)=>[`الفتحة ${i+1}: d = ${fmt(holes[i].d)} mm على ارتفاع h = ${fmt(o.h)} m`,`a${i+1} = ${fmt(o.a)} m²`]),
+     ['نعوض dV = A(y) dy:',`A(y)·dy/dt = ${fmt(Qin)} − [ ${terms} ]`],
+     ['نفصل المتغيرات ونكامل من y₀ إلى y:','t = ∫ A(u) / (ΣQout(u) − Qin) du   (من u = y إلى u = y₀)'],
+     ['التكامل ينحسب عددياً (شبه المنحرف بـ 4000 نقطة) لأن الشكل عام:',`t(y = ${fmt(S.ylow)}) = ${fmt(S.T)} s`]];
+   if(S.eq) steps.push(['التصريف الخارج يساوي الداخل عند هذا العمق، فالخزان يستقر:',`ΣQout(y) = ${fmt(Qin)}  →  y = ${fmt(S.ylow)} m  (الزمن المعروض لحد 99.9% من النزول)`]);
+   return {H,y0,T:S.T,y:S.y,tOf:S.tOf,eq:S.eq,ylow:S.ylow,draw:yw=>draw(yw,holes),
+     eqs:[`A(y)·dy/dt = ${Qin>0?fmt(Qin)+' ':''}− [ ${terms} ]`,aText],
+     note:'هاي المعادلة تنحل عددياً، فالجدول والمنحني والقيم كلها من التكامل العددي.',
+     timeLabel:S.eq?'زمن الوصول لحالة الاستقرار':(S.hmin>0?'زمن نزول الماء لأوطى فتحة':'زمن التفريغ الكلي'),
+     cards:[final,['حجم الماء الابتدائي',fmt(simpson(Af,0,y0,2000))+' m³'],['التصريف الابتدائي Qout',fmt(S.Qo(y0))+' m³/s']],steps};
+  }}
+};
+const order=['cyl','cone','hemi','two','gen'];
+
+/* ---------- state ---------- */
+let cur='cyl',R=null;
+const vals={};
+function defaults(m){const o={};models[m].fields.forEach(f=>o[f.id]=f.def);if(models[m].holesDef) o.holes=models[m].holesDef.map(h=>({...h}));return o;}
+order.forEach(m=>vals[m]=defaults(m));
+try{const s=localStorage.getItem('tank-model');if(models[s]) cur=s;}catch(e){}
+
+const $=id=>document.getElementById(id);
+const tabs=$('tabs'),slider=$('tSlider'),playBtn=$('playBtn');
+tabs.innerHTML=order.map(m=>`<button class="tab" role="tab" id="tab-${m}" data-m="${m}" type="button"><svg viewBox="0 0 24 24" aria-hidden="true">${models[m].icon}</svg><span>${models[m].tab}</span></button>`).join('');
+tabs.addEventListener('click',e=>{const b=e.target.closest('.tab');if(b&&b.dataset.m!==cur){cur=b.dataset.m;try{localStorage.setItem('tank-model',cur)}catch(_){}build();}});
+slider.addEventListener('input',drawAt);
+['q-t','q-y'].forEach(i=>$(i).addEventListener('input',runQuery));
+$('q-tu').addEventListener('change',runQuery);
+
+const GRP={d:'أبعاد الخزان',h:'الفتحات',c:'الثوابت'};
+const UNITS={len:[['m',1],['cm',.01],['mm',.001],['ft',.3048],['in',.0254]],dia:[['mm',1],['cm',10],['m',1000],['in',25.4]],acc:[['m/s²',1],['cm/s²',.01],['ft/s²',.3048]],time:[['s',1],['min',60],['hr',3600]],flow:[['m³/s',1],['L/s',.001],['L/min',1/60000],['m³/hr',1/3600],['ft³/s',.0283168466],['gal/min',6.30901964e-5]]};
+const units={};order.forEach(m=>units[m]={hd:'mm',hh:'m'});
+const fac=(q,u)=>(UNITS[q].find(x=>x[0]===u)||UNITS[q][0])[1];
+const uOf=(id,q)=>units[cur][id]||UNITS[q][0][0];
+const show=v=>isFinite(v)?String(parseFloat((+v).toPrecision(7))):'';
+const unitSel=(id,q,u,attr)=>`<select id="${id}" ${attr} aria-label="الوحدة">${UNITS[q].map(o=>`<option value="${o[0]}"${o[0]===u?' selected':''}>${o[0]}</option>`).join('')}</select>`;
+function fieldHTML(f,v){
+  const id=`${cur}-${f.id}`;
+  const lab=`<label for="${id}">${f.label}${f.sym?` <i>${f.sym}${f.unit&&!f.q?' ('+f.unit+')':''}</i>`:''}</label>`;
+  let ctl;
+  if(f.type==='select') ctl=`<select id="${id}" data-f="${f.id}">${f.options.map(o=>`<option value="${o[0]}"${o[0]===v?' selected':''}>${o[1]}</option>`).join('')}</select>`;
+  else if(f.type==='text') ctl=`<input id="${id}" data-f="${f.id}" type="text" class="mono" spellcheck="false" autocomplete="off" value="${String(v).replace(/"/g,'&quot;')}">`;
+  else if(f.q){const u=uOf(f.id,f.q);ctl=`<div class="ig"><input id="${id}" data-f="${f.id}" type="number" step="any" inputmode="decimal" value="${show(v/fac(f.q,u))}">${unitSel(id+'-u',f.q,u,`data-u="${f.id}"`)}</div>`;}
+  else ctl=`<input id="${id}" data-f="${f.id}" type="number" step="any" inputmode="decimal" value="${v}">`;
+  return `<div class="field${f.full?' full':''}" data-wrap="${f.id}">${lab}${ctl}<span class="hint">${f.hint||''}</span></div>`;
+}
+function holesHTML(){
+  const hs=vals.gen.holes;
+  return `<div class="holes">${hs.map((h,i)=>`<div class="hole"><span class="no">${i+1}</span>
+    <div class="field"><label for="hd-${i}">قطر الفتحة <i>d</i></label><div class="ig"><input id="hd-${i}" type="number" step="any" data-hi="${i}" data-hk="d" value="${show(h.d/fac('dia',units.gen.hd))}">${unitSel('hdu-'+i,'dia',units.gen.hd,'data-hu="hd"')}</div></div>
+    <div class="field"><label for="hh-${i}">ارتفاعها عن القاع <i>h</i></label><div class="ig"><input id="hh-${i}" type="number" step="any" data-hi="${i}" data-hk="h" value="${show(h.h/fac('len',units.gen.hh))}">${unitSel('hhu-'+i,'len',units.gen.hh,'data-hu="hh"')}</div></div>
+    <button class="btn x" type="button" data-rm="${i}" aria-label="احذف الفتحة ${i+1}"${hs.length<2?' disabled':''}>×</button></div>`).join('')}</div>`;
+}
+function build(){
+  if(playing) stopPlay();
+  const M=models[cur];
+  tabs.querySelectorAll('.tab').forEach(b=>b.setAttribute('aria-selected',b.dataset.m===cur));
+  $('mTitle').textContent=M.title; $('mDesc').textContent=M.desc;
+  let html='';
+  for(const g of ['d','h','c']){
+    const fs=M.fields.filter(f=>f.grp===g);
+    if(g==='h'&&M.holesDef){
+      html+=`<div class="grp"><div class="grp-t"><span>${GRP.h}</span><button class="btn" id="addHole" type="button">+ أضف فتحة</button></div><div id="holesBox">${holesHTML()}</div></div>`;
+      continue;
+    }
+    if(!fs.length) continue;
+    html+=`<div class="grp"><div class="grp-t"><span>${GRP[g]}</span></div><div class="fields${g==='c'&&fs.length===3?' c3':''}">${fs.map(f=>fieldHTML(f,vals[cur][f.id])).join('')}</div></div>`;
+  }
+  const form=$('form'); form.innerHTML=html;
+  form.querySelectorAll('[data-f]').forEach(el=>el.addEventListener('input',()=>{
+    const f=M.fields.find(x=>x.id===el.dataset.f); vals[cur][f.id]=(f.type==='select'||f.type==='text')?el.value:parseFloat(el.value)*(f.q?fac(f.q,uOf(f.id,f.q)):1);
+    if(cur==='gen'&&f.id==='shape'){const v=vals.gen,Hs=(v.shape==='sphere'||v.shape==='hcyl')?2*v.Rs:v.H; if(Hs>0){v.y0=Hs;const i=$('gen-y0');if(i)i.value=show(Hs/fac('len',uOf('y0','len')));}}
+    update();}));
+  form.querySelectorAll('[data-u]').forEach(sel=>sel.addEventListener('change',()=>{
+    const f=M.fields.find(x=>x.id===sel.dataset.u); units[cur][f.id]=sel.value;
+    const inp=$(`${cur}-${f.id}`); inp.value=show(vals[cur][f.id]/fac(f.q,sel.value));}));
+  if(M.holesDef) wireHoles();
+  slider.value=0;
+  update();
+}
+function wireHoles(){
+  const box=$('holesBox');
+  $('addHole').onclick=()=>{const hs=vals.gen.holes;hs.push({d:hs[hs.length-1].d,h:0});box.innerHTML=holesHTML();update();};
+  box.oninput=e=>{const el=e.target;if(el.dataset.hi==null)return;const k=el.dataset.hk;vals.gen.holes[+el.dataset.hi][k]=parseFloat(el.value)*(k==='d'?fac('dia',units.gen.hd):fac('len',units.gen.hh));update();};
+  box.onchange=e=>{const el=e.target;if(!el.dataset.hu)return;units.gen[el.dataset.hu]=el.value;box.innerHTML=holesHTML();};
+  box.onclick=e=>{const b=e.target.closest('[data-rm]');if(!b||b.disabled)return;vals.gen.holes.splice(+b.dataset.rm,1);box.innerHTML=holesHTML();update();};
+}
+function visibility(){models[cur].fields.forEach(f=>{const w=document.querySelector(`[data-wrap="${f.id}"]`);if(w) w.hidden=f.show?!f.show(vals[cur]):false;});}
+
+function runQuery(){
+  const o1=$('q-t-out'),o2=$('q-y-out');
+  if(!R||R.err){o1.textContent=o2.textContent='—';return;}
+  const tv=parseFloat($('q-t').value),yv=parseFloat($('q-y').value),mul=TU[$('q-tu').value][0];
+  if(isFinite(tv)&&tv>=0){const ts=tv*mul,v=R.y(ts);o1.textContent=(ts>=R.T&&!R.eq)?`y = ${fmt(v)} m (انتهى التفريغ)`:`y = ${fmt(v)} m`;} else o1.textContent='—';
+  if(isFinite(yv)&&yv>=0&&yv<=R.y0){const t=R.tOf(yv);o2.textContent=isFinite(t)?timeParts(t).join('  =  '):'ما يوصل لهذا العمق (الخزان يستقر قبله)';}
+  else o2.textContent=isFinite(yv)?`العمق لازم يكون بين 0 و ${fmt(R.y0)} m`:'—';
+}
+function update(){
+  visibility();
+  R=models[cur].compute(vals[cur]);
+  const eb=$('errBox');
+  if(R.err){eb.hidden=false;eb.textContent=R.err;['cards','eqs','chart','steps','table','tank'].forEach(i=>$(i).innerHTML='');$('eqNote').textContent='';runQuery();return;}
+  eb.hidden=true;
+  const tp=timeParts(R.T),tu=pickTU(R.T),mul=TU[tu][0];
+  let c=`<div class="stat main"><div class="k">${R.timeLabel||'زمن التفريغ الكلي'}</div><div class="v">${fmt(R.T/mul)} ${tu}</div><div class="s">${tp.filter((_,i)=>i!==['s','min','hr'].indexOf(tu)).join(' · ')}</div></div>`;
+  R.cards.forEach(e=>c+=`<div class="stat"><div class="k">${e[0]}</div><div class="v">${e[1]}</div>${e[2]?`<div class="s">${e[2]}</div>`:'<div class="s">&nbsp;</div>'}</div>`);
+  $('cards').innerHTML=c;
+  $('eqs').innerHTML=R.eqs.map(e=>`<div class="eq">${e}</div>`).join('');
+  $('eqNote').textContent=(R.note?R.note+' ':'')+'y بالمتر و t بالثانية.';
+  $('stepsCnt').textContent=`(${R.steps.length} خطوات)`;
+  $('steps').innerHTML=R.steps.map(s=>`<li>${s[0]}<span class="m">${s[1]}</span></li>`).join('');
+  drawChart($('chart'),t=>R.y(t*mul),R.T/mul,R.y0,`t (${tu})`,'y (m)');
+  let rows='';for(let i=0;i<=10;i++){const t=R.T*i/10;rows+=`<tr><td>${fmt(t)}</td><td>${fmt(t/mul)}</td><td>${fmt(R.y(t))}</td></tr>`;}
+  $('table').innerHTML=`<table><thead><tr><th>t (s)</th><th>t (${tu})</th><th>y (m)</th></tr></thead><tbody>${rows}</tbody></table>`;
+  drawAt();runQuery();
+}
+function drawAt(){
+  if(!R||R.err) return;
+  const s=slider.value/1000,t=R.T*s,yy=R.y(t),tu=pickTU(R.T),mul=TU[tu][0];
+  $('tank').innerHTML=R.draw(Math.max(yy,0));
+  $('rdT').textContent=`${fmt(t/mul)} ${tu}`;
+  $('rdY').textContent=`${fmt(yy)} m`;
+  $('rdP').textContent=`${fmt(Math.round(1000*(R.y0>0?yy/R.y0:0))/10)} %`;
+  $('endLbl').textContent=`${fmt(R.T/mul)} ${tu}`;
+  const mk=$('chartMark');if(mk){const x=56+(600-56-16)*s;mk.setAttribute('x1',x);mk.setAttribute('x2',x);}
+}
+/* play */
+const IC_PLAY='<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg>';
+const IC_PAUSE='<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="2.5" width="3.5" height="11" fill="currentColor"/><rect x="9.5" y="2.5" width="3.5" height="11" fill="currentColor"/></svg>';
+var playing=false,raf=0,last=0;
+function setPlayUI(){playBtn.innerHTML=playing?IC_PAUSE:IC_PLAY;playBtn.setAttribute('aria-label',playing?'إيقاف':'تشغيل');}
+function stopPlay(){playing=false;cancelAnimationFrame(raf);setPlayUI();}
+function tick(now){const dt=now-last;last=now;const v=+slider.value+dt/8000*1000;if(v>=1000){slider.value=1000;drawAt();stopPlay();return;}slider.value=v;drawAt();raf=requestAnimationFrame(tick);}
+playBtn.addEventListener('click',()=>{if(playing){stopPlay();return;}if(+slider.value>=1000)slider.value=0;playing=true;setPlayUI();last=performance.now();raf=requestAnimationFrame(tick);});
+slider.addEventListener('pointerdown',()=>{if(playing)stopPlay();});
+setPlayUI();
+
+/* chart */
+function nice(max){if(!(max>0))return [0,1];const raw=max/5,p=Math.pow(10,Math.floor(Math.log10(raw))),r=raw/p,st=(r<=1?1:r<=2?2:r<=2.5?2.5:r<=5?5:10)*p,o=[];for(let v=0;v<=max*1.0001+st*0.001;v+=st)o.push(+v.toPrecision(10));return o;}
+function drawChart(el,fn,tmax,ymax,xl,yl){
+  const W=600,H=300,L=56,Rr=16,T=14,B=44,pw=W-L-Rr,ph=H-T-B;
+  const yt=nice(ymax*1.05),ytop=yt[yt.length-1]||1,xt=nice(tmax),X=t=>L+pw*t/tmax,Y=v=>T+ph*(1-v/ytop);
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="منحني العمق مع الزمن">`;
+  yt.forEach(v=>{s+=`<line x1="${L}" x2="${W-Rr}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)"/><text x="${L-8}" y="${Y(v)+4}" text-anchor="end" font-size="11" fill="var(--muted)" font-family="IBM Plex Mono">${fmt(v)}</text>`;});
+  xt.forEach(v=>{if(v<=tmax*1.0001) s+=`<text x="${X(v)}" y="${H-B+18}" text-anchor="middle" font-size="11" fill="var(--muted)" font-family="IBM Plex Mono">${fmt(v)}</text><line x1="${X(v)}" x2="${X(v)}" y1="${T+ph}" y2="${T+ph+4}" stroke="var(--muted)"/>`;});
+  let d='';for(let i=0;i<=240;i++){const t=tmax*i/240;d+=(i?'L':'M')+X(t).toFixed(1)+' '+Y(fn(t)).toFixed(1);}
+  s+=`<path d="${d}L${X(tmax)} ${Y(0)}L${X(0)} ${Y(0)}Z" fill="var(--water-soft)"/><path d="${d}" fill="none" stroke="var(--accent)" stroke-width="2.5"/>`;
+  s+=`<line x1="${L}" x2="${L}" y1="${T}" y2="${T+ph}" stroke="var(--ink)"/><line x1="${L}" x2="${W-Rr}" y1="${T+ph}" y2="${T+ph}" stroke="var(--ink)"/>`;
+  s+=`<line id="chartMark" x1="${L}" x2="${L}" y1="${T}" y2="${T+ph}" stroke="var(--mark)" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+  s+=`<text x="${L+pw/2}" y="${H-6}" text-anchor="middle" font-size="12" fill="var(--ink)" font-family="IBM Plex Mono">${xl}</text>`;
+  s+=`<text x="14" y="${T+ph/2}" text-anchor="middle" font-size="12" fill="var(--ink)" font-family="IBM Plex Mono" transform="rotate(-90 14 ${T+ph/2})">${yl}</text></svg>`;
+  el.innerHTML=s;
+}
+window.__tank={vals,drainSolve,compileExpr,get R(){return R;}};
+build();
+})();
+</script>
+
+</body>
+</html>
